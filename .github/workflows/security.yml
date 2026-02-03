@@ -69,6 +69,7 @@ jobs:
     name: Trivy Container Security Scan
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       security-events: write
     
@@ -106,6 +107,4 @@ jobs:
         uses: trufflesecurity/trufflehog@main
         with:
           path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --debug --only-verified
+          extra_args: --only-verified
