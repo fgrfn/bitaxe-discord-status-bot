@@ -60,9 +60,18 @@ logger.addHandler(file_handler)
 logger.addHandler(console_handler)
 
 def format_uptime(seconds):
+    """Format uptime in days, hours, minutes."""
+    if seconds < 60:
+        return f"{seconds}s"
     mins, secs = divmod(seconds, 60)
     hours, mins = divmod(mins, 60)
-    return f"{hours}h, {mins:02}:{secs:02}"
+    days, hours = divmod(hours, 24)
+    if days > 0:
+        return f"{days}d {hours}h {mins}m"
+    elif hours > 0:
+        return f"{hours}h {mins}m"
+    else:
+        return f"{mins}m {secs}s"
 
 def get_vr_temp(status):
     vr_temp = status.get('vrTemp', 0)
@@ -97,6 +106,33 @@ def get_fan_emoji(value, fan_thresholds, fan_emojis):
         return fan_emojis[1]  # Gelb
     else:
         return fan_emojis[0]  # Grün
+
+def get_wifi_emoji(rssi):
+    """Get WiFi signal strength emoji based on RSSI."""
+    if rssi == 0:
+        return "❌"
+    elif rssi >= -50:
+        return "🟢"  # Excellent
+    elif rssi >= -60:
+        return "🟢"  # Good
+    elif rssi >= -70:
+        return "🟡"  # Fair
+    else:
+        return "🔴"  # Weak
+
+def format_ram(free_heap):
+    """Format RAM in KB or MB."""
+    if free_heap >= 1024:
+        return f"{free_heap / 1024:.1f} MB"
+    else:
+        return f"{free_heap} KB"
+
+def calculate_share_success_rate(accepted, rejected):
+    """Calculate share success rate."""
+    total = accepted + rejected
+    if total == 0:
+        return 100.0
+    return (accepted / total) * 100
 
 def get_volt_emoji(value, thresholds, emojis):
     if value >= thresholds[2]:
@@ -236,8 +272,27 @@ async def format_status_embed():
             logger.warning(f"Fehler beim Parsen von BestDiff für {hostname}: {e}")
             continue
 
-    # Erstelle die Discord-Embed-Nachricht, die die aktuellen Daten anzeigt
+    # Berechne Gesamt-Statistiken für Header
+    total_devices = len(data)
+    online_devices = sum(1 for s in data.values() if "error" not in s)
+    offline_devices = total_devices - online_devices
+    total_hashrate = sum(s.get('hashRate', 0) for s in data.values() if "error" not in s)
+    total_power = sum(s.get('power', 0) for s in data.values() if "error" not in s)
+    total_efficiency = total_hashrate / total_power if total_power > 0 else 0
+
+    # Erstelle die Discord-Embed-Nachricht mit Gesamt-Übersicht
     embed = discord.Embed(title="📡 BitAxe Geräteübersicht", color=discord.Color.green())
+    
+    # Gesamt-Übersicht als erstes Field
+    summary = (
+        f"```ansi\n"
+        f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
+        f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
+        f"⚡ Total : {total_hashrate:.2f} GH/s | 🔋 {total_power:.2f}W | "
+        f"📈 {total_efficiency:.2f} GH/W\n"
+        f"```"
+    )
+    embed.add_field(name="📊 Übersicht", value=summary, inline=False)
 
     if current_best:
         timestamp = datetime.fromisoformat(current_best['timestamp'])
@@ -296,8 +351,47 @@ async def format_status_embed():
         # Erkenne Gerätetyp (NerdAxe hat erweiterte Metriken)
         is_nerdaxe = status.get('vrFrequency', 0) > 0 or status.get('jobInterval', 0) > 0
         
+        # WiFi-Info
+        wifi_rssi = status.get('wifiRSSI', 0)
+        wifi_ssid = status.get('ssid', '-')
+        wifi_emoji = get_wifi_emoji(wifi_rssi)
+        
+        # System-Info
+        uptime_str = format_uptime(status.get('uptimeSeconds', 0))
+        free_heap = status.get('freeHeap', 0)
+        ram_str = format_ram(free_heap)
+        version_str = status.get('version', 'N/A')
+        
+        # Share-Erfolgsrate
+        accepted = status.get('sharesAccepted', 0)
+        rejected = status.get('sharesRejected', 0)
+        success_rate = calculate_share_success_rate(accepted, rejected)
+        
+        # Expected Hashrate (falls vorhanden)
+        expected_hr = status.get('expectedHashrate', 0)
+        
+        # Power Limits
+        min_power = status.get('minPower', 0)
+        max_power = status.get('maxPower', 0)
+        power_limit = status.get('powerLimit', 0)
+        
+        # Voltage Limits
+        min_voltage = status.get('minVoltage', 0)
+        max_voltage = status.get('maxVoltage', 0)
+        
+        # Overheat Protection
+        overheat_mode = status.get('overheat_mode', False)
+        overheat_temp = status.get('overheat_temp', 0)
+        temp_target = status.get('temptarget', 0)
+        
         # Hashrate-Metriken (erweitert für NerdAxe)
         hashrate_section = f"⚡ Hashrate  : 🔥 **{status['hashRate']:.2f} GH/s** 🔥\n"
+        
+        # Expected vs Actual Hashrate
+        if expected_hr > 0:
+            actual_percent = (status['hashRate'] / expected_hr) * 100
+            hashrate_section += f"🎯 Expected : {expected_hr:.1f} GH/s ({actual_percent:.1f}%)\n"
+        
         if is_nerdaxe:
             # NerdAxe: Zeige erweiterte Hashrate-Metriken
             hr_1m = status.get('hashRate_1m', 0)
@@ -343,12 +437,17 @@ async def format_status_embed():
             f"🖥️ ASICModel : {status['ASICModel']}\n"
             f"🧭 Frequency : {status['frequency']} MHz @{status['coreVoltageActual']/1000:.3f}V | {status['coreVoltage']/1000:.3f}V\n"
             f"🔧 Device    : {status.get('deviceModel', 'Unknown')}\n"
+            f"⏰ Uptime    : {uptime_str}\n"
+            f"🧠 Free RAM  : {ram_str}\n"
+            f"📦 Version   : {version_str}\n"
+            f"🌐 WiFi      : {wifi_ssid} ({wifi_rssi} dBm) {wifi_emoji}\n"
+            f"📍 IP/MAC    : {ip} | {status.get('mac', 'N/A')}\n"
 
             f"#######################\n"
             f"# Hashrate und Shares #\n"
             f"#######################\n"
             f"{hashrate_section}"
-            f"🧠 Shares    : ✅ {status['sharesAccepted']} / ❌ {status['sharesRejected']}\n"
+            f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
             
@@ -357,9 +456,36 @@ async def format_status_embed():
             f"###############################\n"
             f"# Temperatur- und Power-Daten #\n"
             f"###############################\n"
-            f"🌡️ Temp      : {status['temp']} °C {temp_emoji}\n"
+            f"🌡️ Temp      : {status['temp']} °C {temp_emoji}"
+        )
+        
+        # Overheat Protection Status
+        if temp_target > 0:
+            value += f" (Target: {temp_target}°C)\n"
+        else:
+            value += "\n"
+        
+        if overheat_temp > 0:
+            overheat_status = "🟢 Aus" if not overheat_mode else "🔴 Aktiv"
+            value += f"🛡️ Overheat  : {overheat_status} (Grenze: {overheat_temp}°C)\n"
+        
+        value += (
             f"🔌 VR Temp   : {get_vr_temp(status)} {vr_temp_emoji}\n"
             f"🔋 Power     : {status['power']:.2f} W @ {voltage/1000:.3f} V\n"
+        )
+        
+        # Power Limits (falls verfügbar)
+        if min_power > 0 or max_power > 0:
+            value += f"⚡ Limits    : {min_power:.1f}W - {max_power:.1f}W"
+            if power_limit > 0:
+                value += f" (Limit: {power_limit:.1f}W)"
+            value += "\n"
+        
+        # Voltage Limits (falls verfügbar)
+        if min_voltage > 0 or max_voltage > 0:
+            value += f"📊 Volt Range: {min_voltage/1000:.3f}V - {max_voltage/1000:.3f}V\n"
+        
+        value += (
             f"📈 Eff       : {status['hashRate'] / status['power'] if status['power'] > 0 else 0:.2f} GH/W\n"
             f"💨 Fan       : {status.get('fanspeed', 0)}% / {status['fanrpm']} RPM {fan_emoji}\n"
             
