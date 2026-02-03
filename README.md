@@ -2,11 +2,11 @@
 
 <img src="logo.jpg" alt="BitAxe Discord Bot Logo" width="300"/>
 
-[![Version](https://img.shields.io/github/v/release/fgrfn/bitaxe-discord-status-bot?label=version)](https://github.com/fgrfn/bitaxe-discord-status-bot/releases)
+[![Version](https://img.shields.io/github/v/release/fgrfn/bitaxe-discord-status-bot?include_prereleases&label=version&color=blue)](https://github.com/fgrfn/bitaxe-discord-status-bot/releases)
 [![Docker](https://img.shields.io/badge/docker-ghcr.io-2496ED?logo=docker)](https://github.com/fgrfn/bitaxe-discord-status-bot/pkgs/container/bitaxe-discord-status-bot)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg?logo=python)](https://www.python.org/downloads/)
-[![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-2088FF?logo=githubactions)](https://github.com/fgrfn/bitaxe-discord-status-bot/actions)
+[![CI/CD](https://img.shields.io/github/actions/workflow/status/fgrfn/bitaxe-discord-status-bot/ci.yml?branch=main&label=CI%2FCD&logo=githubactions)](https://github.com/fgrfn/bitaxe-discord-status-bot/actions)
 [![Discord](https://img.shields.io/badge/Discord-Ready-5865F2?logo=discord)](https://discord.com/)
 
 **Real-Time Discord Monitoring für deine BitAxe & NerdAxe Bitcoin Miner**
