@@ -24,6 +24,23 @@ from config import (
     get_mention_user_id
 )
 
+
+def get_version() -> str:
+    """Read version from VERSION file.
+    
+    Returns:
+        Version string (e.g., '2.0.0') or 'unknown' if file not found
+    """
+    try:
+        version_file = os.path.join(get_project_root(), 'VERSION')
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return 'unknown'
+    except Exception as e:
+        logger.warning(f'Error reading VERSION file: {e}')
+        return 'unknown'
+
 # Logging configuration with rotation
 log_dir = os.path.join(get_project_root(), "logs")
 os.makedirs(log_dir, exist_ok=True)
@@ -81,10 +98,24 @@ async def on_ready() -> None:
     This event fires when the bot successfully connects to Discord.
     It starts the periodic status update loop.
     """
+    version = get_version()
     logger.info(f'Bot connected as {bot.user} (ID: {bot.user.id})')
+    logger.info(f'Version: {version}')
     logger.info(f'Monitoring {len(get_devices())} device(s)')
     logger.info(f'Target channel ID: {get_channel_id()}')
     logger.info(f'Update interval: {get_update_interval()}s')
+    
+    # Set bot presence with version
+    try:
+        await bot.change_presence(
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name=f"BitAxe Devices | v{version}"
+            )
+        )
+        logger.info(f'Bot presence set to: Watching BitAxe Devices | v{version}')
+    except Exception as e:
+        logger.error(f'Error setting bot presence: {e}')
     
     try:
         channel = bot.get_channel(get_channel_id())

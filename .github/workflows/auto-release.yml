@@ -1,0 +1,122 @@
+name: Auto Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENSE'
+      - '.github/workflows/**'
+      - 'tests/**'
+      - '*.md'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  auto-release:
+    name: Auto Release & Docker Build
+    runs-on: ubuntu-latest
+    if: "!startsWith(github.event.head_commit.message, 'bump:')"
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Read current version
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "current=$VERSION" >> $GITHUB_OUTPUT
+          
+          # Bump patch version
+          IFS='.' read -r -a parts <<< "$VERSION"
+          MAJOR="${parts[0]}"
+          MINOR="${parts[1]}"
+          PATCH="${parts[2]}"
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          echo "new=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+      
+      - name: Update VERSION file
+        run: |
+          echo "${{ steps.version.outputs.new }}" > VERSION
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add VERSION
+          git commit -m "bump: version ${{ steps.version.outputs.new }}"
+          git push
+      
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.version.outputs.new }}" \
+            --title "v${{ steps.version.outputs.new }}" \
+            --notes "Automated release v${{ steps.version.outputs.new }}
+          
+          ## Changes
+          $(git log v${{ steps.version.outputs.current }}..HEAD --pretty=format:"- %s" --no-merges | head -10)
+          
+          ## Docker
+          \`\`\`bash
+          docker pull ghcr.io/fgrfn/bitaxe-discord-status-bot:v${{ steps.version.outputs.new }}
+          docker pull ghcr.io/fgrfn/bitaxe-discord-status-bot:latest
+          \`\`\`" \
+            --latest
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=v${{ steps.version.outputs.new }}
+            type=semver,pattern={{version}},value=v${{ steps.version.outputs.new }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.new }}
+            type=semver,pattern={{major}},value=v${{ steps.version.outputs.new }}
+            type=raw,value=latest
+      
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.version.outputs.new }}
+      
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

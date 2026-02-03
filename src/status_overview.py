@@ -24,6 +24,22 @@ def get_mention_id():
     """Get mention user ID from config."""
     return get_mention_user_id()
 
+
+def get_version() -> str:
+    """Read version from VERSION file.
+    
+    Returns:
+        Version string (e.g., '2.0.0') or 'unknown' if file not found
+    """
+    try:
+        version_file = os.path.join(PROJECT_ROOT, 'VERSION')
+        with open(version_file, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return 'unknown'
+    except Exception:
+        return 'unknown'
+
 # Lade die Best-Difficulty-Historie nur einmal beim Start oder bei einer Änderung
 best_diff_history = []
 
@@ -389,7 +405,8 @@ async def format_status_embed():
     except Exception:
         next_update_time = f"⏳ Update-Intervall: {update_interval}s"
 
-    # Footer mit Restzeit zur nächsten Aktualisierung
-    embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • BitAxe Discord Bot by xNookie")
+    # Footer mit Restzeit zur nächsten Aktualisierung und Version
+    version = get_version()
+    embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • v{version} • BitAxe Discord Bot by xNookie")
 
     return embed, new_record, new_record_value
