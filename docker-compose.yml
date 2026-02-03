@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  bitaxe-bot:
+    build: .
+    container_name: bitaxe-discord-bot
+    restart: unless-stopped
+    environment:
+      # Bot Configuration (can override config.ini)
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID:-}
+      - UPDATE_INTERVAL=${UPDATE_INTERVAL:-30}
+      - MENTION_USER_ID=${MENTION_USER_ID:-}
+      
+      # Device Configuration (optional, overrides config.ini)
+      # BitAxe Gamma
+      - DEVICE_BITAXE_GAMMA_IP=${DEVICE_BITAXE_GAMMA_IP:-}
+      - DEVICE_BITAXE_GAMMA_TEMP_THRESHOLDS=${DEVICE_BITAXE_GAMMA_TEMP_THRESHOLDS:-60,65,70}
+      - DEVICE_BITAXE_GAMMA_FAN_THRESHOLDS=${DEVICE_BITAXE_GAMMA_FAN_THRESHOLDS:-0,2000,3500,7500}
+      - DEVICE_BITAXE_GAMMA_VOLT_THRESHOLDS=${DEVICE_BITAXE_GAMMA_VOLT_THRESHOLDS:-0.95,1.1,1.3}
+      - DEVICE_BITAXE_GAMMA_VR_TEMP_THRESHOLDS=${DEVICE_BITAXE_GAMMA_VR_TEMP_THRESHOLDS:-65,75,80}
+      
+      # NerdAxe
+      - DEVICE_NERDAXE_IP=${DEVICE_NERDAXE_IP:-}
+      - DEVICE_NERDAXE_TEMP_THRESHOLDS=${DEVICE_NERDAXE_TEMP_THRESHOLDS:-60,65,70}
+      - DEVICE_NERDAXE_FAN_THRESHOLDS=${DEVICE_NERDAXE_FAN_THRESHOLDS:-0,2000,3500,7500}
+      - DEVICE_NERDAXE_VOLT_THRESHOLDS=${DEVICE_NERDAXE_VOLT_THRESHOLDS:-0.95,1.1,1.3}
+      - DEVICE_NERDAXE_VR_TEMP_THRESHOLDS=${DEVICE_NERDAXE_VR_TEMP_THRESHOLDS:-65,75,80}
+      
+      # Add more devices by adding more DEVICE_* environment variables
+    volumes:
+      # config.ini is optional when using environment variables
+      - ./config.ini:/app/config.ini:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - bitaxe-network
+
+networks:
+  bitaxe-network:
+    driver: bridge

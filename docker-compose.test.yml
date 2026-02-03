@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "pip install pytest pytest-asyncio pytest-cov pytest-mock &&
+             pytest -v --cov=src --cov-report=term-missing --cov-report=html"
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./htmlcov:/app/htmlcov
+    environment:
+      - PYTHONUNBUFFERED=1

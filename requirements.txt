@@ -1,0 +1,10 @@
+# Core Dependencies
+discord.py>=2.3.2
+aiohttp>=3.9.1
+configparser>=6.0.0
+
+# Testing Dependencies (optional, for development)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
