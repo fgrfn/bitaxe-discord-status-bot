@@ -9,7 +9,7 @@ import aiohttp
 import logging
 from typing import Dict, Any, Optional, List, Union
 from datetime import datetime, timedelta
-from config import get_devices
+from src.config import get_devices
 
 logger = logging.getLogger(__name__)
 
