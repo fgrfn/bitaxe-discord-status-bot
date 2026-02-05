@@ -205,25 +205,40 @@ def save_best_diff(value, best_diff, hostname):
     except IOError as e:
         logger.error(f"Fehler beim Speichern der Best-Difficulty: {e}")
 
+def get_best_diff_suffix(best_diff):
+    best_diff_str = str(best_diff).strip().upper()
+    if best_diff_str and best_diff_str[-1] in ["G", "M", "K"]:
+        return best_diff_str[-1]
+    return ""
+
 def format_best_diff(best_diff):
     try:
+        best_diff_str = str(best_diff).strip().upper()
         # Umwandlung der Best-Difficulty in ein numerisches Format
-        if 'G' in best_diff:  # Falls es sich um Gigabytes handelt
-            value = float(best_diff.replace('G', '').strip()) * 1e9
+        if 'G' in best_diff_str:  # Falls es sich um Gigabytes handelt
+            value = float(best_diff_str.replace('G', '').strip()) * 1e9
             formatted_value = f"{int(value):,} (G)"
-        elif 'M' in best_diff:  # Falls es sich um Megabytes handelt
-            value = float(best_diff.replace('M', '').strip()) * 1e6
+        elif 'M' in best_diff_str:  # Falls es sich um Megabytes handelt
+            value = float(best_diff_str.replace('M', '').strip()) * 1e6
             formatted_value = f"{int(value):,} (M)"
-        elif 'K' in best_diff:  # Falls es sich um Kilobytes handelt
-            value = float(best_diff.replace('K', '').strip()) * 1e3
+        elif 'K' in best_diff_str:  # Falls es sich um Kilobytes handelt
+            value = float(best_diff_str.replace('K', '').strip()) * 1e3
             formatted_value = f"{int(value):,} (K)"
         else:
-            value = float(best_diff)
+            value = float(best_diff_str)
             formatted_value = f"{int(value):,}"
         return formatted_value
     except Exception as e:
         logger.error(f"Fehler bei der Formatierung der Best-Difficulty: {e}")
-        return best_diff  # Falls etwas schief geht, einfach den Originalwert zurückgeben
+        return str(best_diff)  # Falls etwas schief geht, einfach den Originalwert zurückgeben
+
+def chunk_embed_field(value, max_length=1024):
+    if value.startswith("```") and value.endswith("```"):
+        code_fence = value.split("\n", 1)[0]
+        inner = value[len(code_fence) + 1:-3]
+        chunks = [inner[i:i + max_length - len(code_fence) - 4] for i in range(0, len(inner), max_length - len(code_fence) - 4)]
+        return [f"{code_fence}\n{chunk}```" for chunk in chunks]
+    return [value[i:i + max_length] for i in range(0, len(value), max_length)]
 
 async def format_status_embed():
     data = await get_all_device_statuses()
@@ -264,7 +279,7 @@ async def format_status_embed():
             best_diff_history.append({
                 "timestamp": datetime.utcnow().isoformat(),
                 "value": status['bestDiff'],
-                "short": status['bestDiff'][-1],  # Nur den letzten Buchstaben (G/M/K)
+                "short": get_best_diff_suffix(status['bestDiff']),
                 "hostname": hostname
             })
 
@@ -508,14 +523,31 @@ async def format_status_embed():
         
         value += "```"
 
-        embed.add_field(name=f"🛠️ {hostname}", value=value, inline=False)
+        value_chunks = chunk_embed_field(value)
+        for index, chunk in enumerate(value_chunks):
+            field_name = f"🛠️ {hostname}"
+            if index > 0:
+                field_name = f"🛠️ {hostname} (Fortsetzung {index + 1})"
+            embed.add_field(name=field_name, value=chunk, inline=False)
 
     # Best-Difficulty Historie unter den Geräten
     if best_diff_history:
-        history_message = "```ansi\nRank | 📅 Date              | 💎 BestDiff             | 🖥️ Device\n" + "-"*65 + "\n"
+        history_header = "```ansi\nRank | 📅 Date              | 💎 BestDiff             | 🖥️ Device\n" + "-"*65 + "\n"
+        history_footer = "```"
+        history_lines = []
         for i, entry in enumerate(best_diff_history, 1):
-            history_message += f"{'🥇' if i == 1 else '🥈' if i == 2 else '🥉' if i == 3 else str(i)}   | {datetime.fromisoformat(entry['timestamp']).strftime('%d.%m.%Y %H:%M').ljust(20)} | {entry['value']} ({entry['short']})          | {entry['hostname']}\n"
-        history_message += "```"
+            rank = '🥇' if i == 1 else '🥈' if i == 2 else '🥉' if i == 3 else str(i)
+            best_diff_short = entry['short'] or get_best_diff_suffix(entry['value'])
+            history_lines.append(
+                f"{rank}   | {datetime.fromisoformat(entry['timestamp']).strftime('%d.%m.%Y %H:%M').ljust(20)} | "
+                f"{entry['value']} ({best_diff_short})          | {entry['hostname']}\n"
+            )
+        history_message = history_header
+        for line in history_lines:
+            if len(history_message) + len(line) + len(history_footer) > 1024:
+                break
+            history_message += line
+        history_message += history_footer
         embed.add_field(name="🏆 Best-Difficulty Historie", value=history_message, inline=False)
     else:
         embed.add_field(name="🏆 Best-Difficulty Historie", value="Es gibt noch keine Best-Difficulty-Historie.", inline=False)
