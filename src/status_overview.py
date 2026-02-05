@@ -300,7 +300,6 @@ async def format_status_embed():
     
     # Gesamt-Übersicht als erstes Field
     summary = (
-        "\n"
         f"```ansi\n"
         f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
         f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
@@ -315,7 +314,7 @@ async def format_status_embed():
         minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
         record_block = (
-            "\n"
+            \n\u200B\n
             f"```ansi\n"
             f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
             f"🛠️ Gerät     : {current_best['hostname']}\n"
@@ -459,7 +458,7 @@ async def format_status_embed():
             f"📦 Version   : {version_str}\n"
             f"🌐 WiFi      : {wifi_ssid} ({wifi_rssi} dBm) {wifi_emoji}\n"
             f"📍 IP/MAC    : {ip} | {status.get('mac', 'N/A')}\n"
-            "\n"
+            \n\u200B\n
             f"#######################\n"
             f"# Hashrate und Shares #\n"
             f"#######################\n"
@@ -467,9 +466,9 @@ async def format_status_embed():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
-            "\n"
+            \n\u200B\n
             f"{nerdaxe_stats}"
-            "\n"
+            \n\u200B\n
             f"###############################\n"
             f"# Temperatur- und Power-Daten #\n"
             f"###############################\n"
