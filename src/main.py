@@ -114,6 +114,9 @@ status_cache: Dict[str, Any] = {}
 alert_cooldowns: Dict[str, datetime] = {}  # Track when alerts were last sent
 ALERT_COOLDOWN = timedelta(minutes=15)  # Don't spam alerts
 STATUS_MESSAGE_DIR = os.path.join(get_project_root(), "data")
+MESSAGE_EDIT_COOLDOWNS: Dict[str, datetime] = {}
+LAST_EMBED_PAYLOADS: Dict[str, Dict[str, Any]] = {}
+MIN_MESSAGE_EDIT_INTERVAL = timedelta(seconds=5)
 
 
 def get_status_message_path(message_key: str) -> str:
@@ -269,6 +272,29 @@ async def update_status() -> None:
                 continue
             message_path = get_status_message_path(message_key)
             last_message = last_messages.get(message_key)
+            now = datetime.now()
+
+            cooldown_until = MESSAGE_EDIT_COOLDOWNS.get(message_key)
+            if cooldown_until and now < cooldown_until:
+                logger.debug(
+                    "Skipping update for %s due to rate-limit cooldown until %s",
+                    message_key,
+                    cooldown_until.isoformat(),
+                )
+                continue
+
+            embed_payload = embed.to_dict()
+            if LAST_EMBED_PAYLOADS.get(message_key) == embed_payload:
+                logger.debug("No changes for %s status embed, skipping edit", message_key)
+                continue
+
+            last_update_for_message = status_cache.get(f"last_update_{message_key}")
+            if last_update_for_message and now - last_update_for_message < MIN_MESSAGE_EDIT_INTERVAL:
+                logger.debug(
+                    "Skipping update for %s due to minimum edit interval",
+                    message_key,
+                )
+                continue
 
             if last_message is None:
                 message_id = load_status_message_id(message_path)
@@ -286,15 +312,23 @@ async def update_status() -> None:
                 try:
                     await last_message.edit(embed=embed)
                     logger.debug(f'Status message updated successfully for {message_key}')
+                    LAST_EMBED_PAYLOADS[message_key] = embed_payload
+                    status_cache[f"last_update_{message_key}"] = now
                 except discord.NotFound:
                     logger.warning(f'Previous message for {message_key} not found, creating new one')
                     last_message = await channel.send(embed=embed)
                     save_status_message_id(message_path, last_message.id)
+                    LAST_EMBED_PAYLOADS[message_key] = embed_payload
+                    status_cache[f"last_update_{message_key}"] = now
                 except discord.HTTPException as e:
                     if e.status == 429:  # Rate limited
                         retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
-                        logger.warning(f'Rate limited, waiting {retry_after}s')
-                        await asyncio.sleep(retry_after)
+                        MESSAGE_EDIT_COOLDOWNS[message_key] = now + timedelta(seconds=retry_after)
+                        logger.warning(
+                            "Rate limited updating %s, backing off for %.2fs",
+                            message_key,
+                            retry_after,
+                        )
                     else:
                         logger.error(f'HTTP error updating message for {message_key}: {e}')
                         raise
@@ -302,6 +336,8 @@ async def update_status() -> None:
                 last_message = await channel.send(embed=embed)
                 logger.info(f'Initial status message created for {message_key}')
                 save_status_message_id(message_path, last_message.id)
+                LAST_EMBED_PAYLOADS[message_key] = embed_payload
+                status_cache[f"last_update_{message_key}"] = now
 
             last_messages[message_key] = last_message
         
