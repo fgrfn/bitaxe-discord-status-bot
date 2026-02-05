@@ -14,8 +14,8 @@ import sys
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from status_overview import format_status_embed
-from config import (
+from src.status_overview import format_status_embed
+from src.config import (
     get_bot_token,
     get_channel_id,
     get_update_interval,
@@ -253,7 +253,7 @@ async def update_status() -> None:
         last_update_time = datetime.now()
         
         # Check for alerts on all devices
-        from device_status import get_all_device_statuses
+        from src.device_status import get_all_device_statuses
         all_statuses = await get_all_device_statuses()
         for device_name, status in all_statuses.items():
             await check_and_send_alerts(channel, device_name, status)
