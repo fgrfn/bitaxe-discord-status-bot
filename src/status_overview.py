@@ -243,7 +243,16 @@ def chunk_embed_field(value, max_length=1024):
 def add_spacer_field(embed):
     embed.add_field(name="\u200b", value="\u200b", inline=False)
 
-async def format_status_embed():
+def build_summary(data):
+    total_devices = len(data)
+    online_devices = sum(1 for s in data.values() if "error" not in s)
+    offline_devices = total_devices - online_devices
+    total_hashrate = sum(s.get('hashRate', 0) for s in data.values() if "error" not in s)
+    total_power = sum(s.get('power', 0) for s in data.values() if "error" not in s)
+    total_efficiency = total_hashrate / total_power if total_power > 0 else 0
+    return total_devices, online_devices, offline_devices, total_hashrate, total_power, total_efficiency
+
+async def format_status_embeds():
     data = await get_all_device_statuses()
     current_best = load_best_diff()  # Lade die Best-Difficulty-Historie nur einmal
     new_record = False
@@ -290,53 +299,55 @@ async def format_status_embed():
             logger.warning(f"Fehler beim Parsen von BestDiff für {hostname}: {e}")
             continue
 
-    # Berechne Gesamt-Statistiken für Header
-    total_devices = len(data)
-    online_devices = sum(1 for s in data.values() if "error" not in s)
-    offline_devices = total_devices - online_devices
-    total_hashrate = sum(s.get('hashRate', 0) for s in data.values() if "error" not in s)
-    total_power = sum(s.get('power', 0) for s in data.values() if "error" not in s)
-    total_efficiency = total_hashrate / total_power if total_power > 0 else 0
+    bitaxe_embed = discord.Embed(title="📡 BitAxe Geräteübersicht", color=discord.Color.green())
+    nerdaxe_embed = discord.Embed(title="📡 NerdAxe Geräteübersicht", color=discord.Color.blue())
+    history_embed = discord.Embed(title="🏆 Best-Difficulty Historie", color=discord.Color.gold())
+    add_spacer_field(bitaxe_embed)
+    add_spacer_field(nerdaxe_embed)
+    add_spacer_field(history_embed)
 
-    # Erstelle die Discord-Embed-Nachricht mit Gesamt-Übersicht
-    embed = discord.Embed(title="📡 BitAxe Geräteübersicht", color=discord.Color.green())
-    add_spacer_field(embed)
-    
-    # Gesamt-Übersicht als erstes Field
-    summary = (
-        f"```ansi\n"
-        f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
-        f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
-        f"⚡ Total : {total_hashrate:.2f} GH/s | 🔋 {total_power:.2f}W | "
-        f"📈 {total_efficiency:.2f} GH/W\n"
-        f"```"
-    )
-    embed.add_field(name="📊 Übersicht", value=summary, inline=False)
-
-    if current_best:
-        add_spacer_field(embed)
-        timestamp = datetime.fromisoformat(current_best['timestamp'])
-        minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
-        formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
-        record_block = (
-            f"```ansi\n"
-            f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
-            f"🛠️ Gerät     : {current_best['hostname']}\n"
-            f"🕒 Zeit      : {timestamp.strftime('%d.%m.%Y %H:%M')}\n"
-            f"⏱️ Vor       : {formatted_time_ago}\n"
-            f"```"
-        )
-        title = "🏆 Rekord-Difficulty"
-        if new_record and MENTION_ID:
-            title += f" – <@{MENTION_ID}> Neuer Rekord!"
-        embed.add_field(name=title, value=record_block, inline=False)
+    bitaxe_data = {}
+    nerdaxe_data = {}
 
     sorted_data = sorted(data.items(), key=lambda x: x[0])
     devices = get_devices()
 
+    device_entries = []
     for hostname, status in sorted_data:
         if "error" in status:
-            embed.add_field(
+            is_nerdaxe = "nerd" in hostname.lower()
+            device_entries.append((hostname, status, is_nerdaxe, True))
+            if is_nerdaxe:
+                nerdaxe_data[hostname] = status
+            else:
+                bitaxe_data[hostname] = status
+            continue
+
+        is_nerdaxe = status.get('vrFrequency', 0) > 0 or status.get('jobInterval', 0) > 0
+        device_entries.append((hostname, status, is_nerdaxe, False))
+        if is_nerdaxe:
+            nerdaxe_data[hostname] = status
+        else:
+            bitaxe_data[hostname] = status
+    bitaxe_stats = build_summary(bitaxe_data)
+    nerdaxe_stats = build_summary(nerdaxe_data)
+
+    for embed, stats in ((bitaxe_embed, bitaxe_stats), (nerdaxe_embed, nerdaxe_stats)):
+        total_devices, online_devices, offline_devices, total_hashrate, total_power, total_efficiency = stats
+        summary = (
+            f"```ansi\n"
+            f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
+            f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
+            f"⚡ Total : {total_hashrate:.2f} GH/s | 🔋 {total_power:.2f}W | "
+            f"📈 {total_efficiency:.2f} GH/W\n"
+            f"```"
+        )
+        embed.add_field(name="📊 Übersicht", value=summary, inline=False)
+
+    for hostname, status, is_nerdaxe, is_error in device_entries:
+        target_embed = nerdaxe_embed if is_nerdaxe else bitaxe_embed
+        if is_error:
+            target_embed.add_field(
                 name=f"❌ {hostname}",
                 value=f"Fehler beim Abrufen: `{status['error']}`",
                 inline=False
@@ -367,9 +378,6 @@ async def format_status_embed():
         temp_emoji = get_temp_emoji(status['temp'], temp_thresholds, ["🟢", "🟡", "🔴"])
         fan_emoji = get_fan_emoji(status['fanrpm'], fan_thresholds, ["🟢", "🟡", "🔴"])
         volt_emoji = get_volt_emoji(voltage, volt_thresholds, ["🟢", "🟡", "🔴"])
-
-        # Erkenne Gerätetyp (NerdAxe hat erweiterte Metriken)
-        is_nerdaxe = status.get('vrFrequency', 0) > 0 or status.get('jobInterval', 0) > 0
         
         # WiFi-Info
         wifi_rssi = status.get('wifiRSSI', 0)
@@ -529,11 +537,30 @@ async def format_status_embed():
         value += "```"
 
         value_chunks = chunk_embed_field(value)
+        target_embed = nerdaxe_embed if is_nerdaxe else bitaxe_embed
         for index, chunk in enumerate(value_chunks):
             field_name = f"🛠️ {hostname}"
             if index > 0:
                 field_name = f"🛠️ {hostname} (Fortsetzung {index + 1})"
-            embed.add_field(name=field_name, value=chunk, inline=False)
+            target_embed.add_field(name=field_name, value=chunk, inline=False)
+
+    if current_best:
+        add_spacer_field(history_embed)
+        timestamp = datetime.fromisoformat(current_best['timestamp'])
+        minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
+        formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
+        record_block = (
+            f"```ansi\n"
+            f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
+            f"🛠️ Gerät     : {current_best['hostname']}\n"
+            f"🕒 Zeit      : {timestamp.strftime('%d.%m.%Y %H:%M')}\n"
+            f"⏱️ Vor       : {formatted_time_ago}\n"
+            f"```"
+        )
+        title = "🏆 Rekord-Difficulty"
+        if new_record and MENTION_ID:
+            title += f" – <@{MENTION_ID}> Neuer Rekord!"
+        history_embed.add_field(name=title, value=record_block, inline=False)
 
     # Best-Difficulty Historie unter den Geräten
     if best_diff_history:
@@ -553,9 +580,9 @@ async def format_status_embed():
                 break
             history_message += line
         history_message += history_footer
-        embed.add_field(name="🏆 Best-Difficulty Historie", value=history_message, inline=False)
+        history_embed.add_field(name="🏆 Best-Difficulty Historie", value=history_message, inline=False)
     else:
-        embed.add_field(name="🏆 Best-Difficulty Historie", value="Es gibt noch keine Best-Difficulty-Historie.", inline=False)
+        history_embed.add_field(name="🏆 Best-Difficulty Historie", value="Es gibt noch keine Best-Difficulty-Historie.", inline=False)
 
     # Berechne verbleibende Zeit bis zum nächsten Update
     try:
@@ -570,6 +597,12 @@ async def format_status_embed():
 
     # Footer mit Restzeit zur nächsten Aktualisierung und Version
     version = get_version()
-    embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • v{version} • BitAxe Discord Bot by xNookie")
+    bitaxe_embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • v{version} • BitAxe Discord Bot by xNookie")
+    nerdaxe_embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • v{version} • BitAxe Discord Bot by xNookie")
+    history_embed.set_footer(text=f"🔁 Aktualisiert automatisch • {next_update_time} • v{version} • BitAxe Discord Bot by xNookie")
 
-    return embed, new_record, new_record_value
+    return {
+        "bitaxe": bitaxe_embed,
+        "nerdaxe": nerdaxe_embed,
+        "history": history_embed,
+    }, new_record, new_record_value

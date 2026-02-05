@@ -15,7 +15,7 @@ import json
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from src.status_overview import format_status_embed
+from src.status_overview import format_status_embeds
 from src.config import (
     get_bot_token,
     get_channel_id,
@@ -43,11 +43,11 @@ def get_version() -> str:
         return 'unknown'
 
 
-def load_status_message_id() -> Optional[int]:
+def load_status_message_id(message_path: str) -> Optional[int]:
     """Load persisted status message ID if available."""
     try:
-        if os.path.exists(STATUS_MESSAGE_FILE):
-            with open(STATUS_MESSAGE_FILE, "r") as f:
+        if os.path.exists(message_path):
+            with open(message_path, "r") as f:
                 payload = json.load(f)
             message_id = payload.get("message_id")
             if isinstance(message_id, int):
@@ -57,11 +57,11 @@ def load_status_message_id() -> Optional[int]:
     return None
 
 
-def save_status_message_id(message_id: int) -> None:
+def save_status_message_id(message_path: str, message_id: int) -> None:
     """Persist status message ID for reuse across restarts."""
     try:
-        os.makedirs(os.path.dirname(STATUS_MESSAGE_FILE), exist_ok=True)
-        with open(STATUS_MESSAGE_FILE, "w") as f:
+        os.makedirs(os.path.dirname(message_path), exist_ok=True)
+        with open(message_path, "w") as f:
             json.dump({"message_id": message_id}, f)
     except Exception as e:
         logger.warning(f"Failed to save status message ID: {e}")
@@ -104,12 +104,20 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Global state
-last_message: Optional[discord.Message] = None
+last_messages: Dict[str, Optional[discord.Message]] = {
+    "bitaxe": None,
+    "nerdaxe": None,
+    "history": None,
+}
 last_update_time: Optional[datetime] = None
 status_cache: Dict[str, Any] = {}
 alert_cooldowns: Dict[str, datetime] = {}  # Track when alerts were last sent
 ALERT_COOLDOWN = timedelta(minutes=15)  # Don't spam alerts
-STATUS_MESSAGE_FILE = os.path.join(get_project_root(), "data", "status_message.json")
+STATUS_MESSAGE_DIR = os.path.join(get_project_root(), "data")
+
+
+def get_status_message_path(message_key: str) -> str:
+    return os.path.join(STATUS_MESSAGE_DIR, f"status_message_{message_key}.json")
 
 # Alert thresholds
 TEMP_CRITICAL = 75  # °C
@@ -241,7 +249,7 @@ async def update_status() -> None:
     - Updates or creates a Discord message with status embed
     - Implements rate limiting to avoid Discord API limits
     """
-    global last_message, last_update_time, status_cache
+    global last_messages, last_update_time, status_cache
     
     channel = bot.get_channel(get_channel_id())
     if not channel:
@@ -250,45 +258,52 @@ async def update_status() -> None:
     
     try:
         # Fetch device statuses (with caching in device_status module)
-        embed, new_record_device, new_record_value = await format_status_embed()
+        embeds, new_record_device, new_record_value = await format_status_embeds()
         
         # Rate limiting: Wait if we updated too recently
         if last_update_time and (datetime.now() - last_update_time).total_seconds() < 1:
             await asyncio.sleep(1)
         
-        # Update existing message or create new one
-        if last_message is None:
-            message_id = load_status_message_id()
-            if message_id:
-                try:
-                    last_message = await channel.fetch_message(message_id)
-                    logger.info('Loaded previous status message')
-                except discord.NotFound:
-                    logger.warning('Stored status message not found, will create a new one')
-                    last_message = None
-                except discord.HTTPException as e:
-                    logger.warning(f'Failed to fetch stored status message: {e}')
+        for message_key, embed in embeds.items():
+            if embed is None:
+                continue
+            message_path = get_status_message_path(message_key)
+            last_message = last_messages.get(message_key)
 
-        if last_message:
-            try:
-                await last_message.edit(embed=embed)
-                logger.debug('Status message updated successfully')
-            except discord.NotFound:
-                logger.warning('Previous message not found, creating new one')
+            if last_message is None:
+                message_id = load_status_message_id(message_path)
+                if message_id:
+                    try:
+                        last_message = await channel.fetch_message(message_id)
+                        logger.info(f'Loaded previous status message for {message_key}')
+                    except discord.NotFound:
+                        logger.warning(f'Stored status message for {message_key} not found, will create a new one')
+                        last_message = None
+                    except discord.HTTPException as e:
+                        logger.warning(f'Failed to fetch stored status message for {message_key}: {e}')
+
+            if last_message:
+                try:
+                    await last_message.edit(embed=embed)
+                    logger.debug(f'Status message updated successfully for {message_key}')
+                except discord.NotFound:
+                    logger.warning(f'Previous message for {message_key} not found, creating new one')
+                    last_message = await channel.send(embed=embed)
+                    save_status_message_id(message_path, last_message.id)
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limited
+                        retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+                        logger.warning(f'Rate limited, waiting {retry_after}s')
+                        await asyncio.sleep(retry_after)
+                    else:
+                        logger.error(f'HTTP error updating message for {message_key}: {e}')
+                        raise
+            else:
                 last_message = await channel.send(embed=embed)
-                save_status_message_id(last_message.id)
-            except discord.HTTPException as e:
-                if e.status == 429:  # Rate limited
-                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
-                    logger.warning(f'Rate limited, waiting {retry_after}s')
-                    await asyncio.sleep(retry_after)
-                else:
-                    logger.error(f'HTTP error updating message: {e}')
-                    raise
-        else:
-            last_message = await channel.send(embed=embed)
-            logger.info('Initial status message created')
-            save_status_message_id(last_message.id)
+                logger.info(f'Initial status message created for {message_key}')
+                save_status_message_id(message_path, last_message.id)
+
+            last_messages[message_key] = last_message
         
         last_update_time = datetime.now()
         
