@@ -240,6 +240,10 @@ def chunk_embed_field(value, max_length=1024):
         return [f"{code_fence}\n{chunk}```" for chunk in chunks]
     return [value[i:i + max_length] for i in range(0, len(value), max_length)]
 
+def add_spacer_field(embed):
+    embed.add_field(name="\u200b", value="\u200b", inline=False)
+=======
+
 async def format_status_embed():
     data = await get_all_device_statuses()
     current_best = load_best_diff()  # Lade die Best-Difficulty-Historie nur einmal
@@ -297,6 +301,7 @@ async def format_status_embed():
 
     # Erstelle die Discord-Embed-Nachricht mit Gesamt-Übersicht
     embed = discord.Embed(title="📡 BitAxe Geräteübersicht", color=discord.Color.green())
+    add_spacer_field(embed)
     
     # Gesamt-Übersicht als erstes Field
     summary = (
@@ -310,6 +315,7 @@ async def format_status_embed():
     embed.add_field(name="📊 Übersicht", value=summary, inline=False)
 
     if current_best:
+        add_spacer_field(embed)
         timestamp = datetime.fromisoformat(current_best['timestamp'])
         minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
