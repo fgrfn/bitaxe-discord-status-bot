@@ -300,6 +300,7 @@ async def format_status_embed():
     
     # Gesamt-Übersicht als erstes Field
     summary = (
+        "\n"
         f"```ansi\n"
         f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
         f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
@@ -314,6 +315,7 @@ async def format_status_embed():
         minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
         record_block = (
+            "\n"
             f"```ansi\n"
             f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
             f"🛠️ Gerät     : {current_best['hostname']}\n"
