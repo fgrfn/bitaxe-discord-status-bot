@@ -478,9 +478,9 @@ async def format_status_embeds():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
-            
+
             f"{nerdaxe_stats}"
-                
+
             f"###############################\n"
             f"# Temperatur- und Power-Daten #\n"
             f"###############################\n"
@@ -516,7 +516,7 @@ async def format_status_embeds():
         value += (
             f"📈 Eff       : {status['hashRate'] / status['power'] if status['power'] > 0 else 0:.2f} GH/W\n"
             f"💨 Fan       : {status.get('fanspeed', 0)}% / {status['fanrpm']} RPM {fan_emoji}\n"
-            
+
             f"#########################\n"
             f"# Stratum-Informationen #\n"
             f"#########################\n"
