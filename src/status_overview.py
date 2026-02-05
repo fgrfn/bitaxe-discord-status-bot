@@ -242,6 +242,7 @@ def chunk_embed_field(value, max_length=1024):
 
 def add_spacer_field(embed):
     embed.add_field(name="\u200b", value="\u200b", inline=False)
+=======
 
 async def format_status_embed():
     data = await get_all_device_statuses()
@@ -470,9 +471,9 @@ async def format_status_embed():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
-            
+
             f"{nerdaxe_stats}"
-                
+
             f"###############################\n"
             f"# Temperatur- und Power-Daten #\n"
             f"###############################\n"
@@ -508,7 +509,7 @@ async def format_status_embed():
         value += (
             f"📈 Eff       : {status['hashRate'] / status['power'] if status['power'] > 0 else 0:.2f} GH/W\n"
             f"💨 Fan       : {status.get('fanspeed', 0)}% / {status['fanrpm']} RPM {fan_emoji}\n"
-            
+
             f"#########################\n"
             f"# Stratum-Informationen #\n"
             f"#########################\n"
