@@ -314,7 +314,6 @@ async def format_status_embed():
         minutes_ago = int((datetime.utcnow() - timestamp).total_seconds() // 60)
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
         record_block = (
-            \n\u200B\n
             f"```ansi\n"
             f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
             f"🛠️ Gerät     : {current_best['hostname']}\n"
@@ -458,7 +457,7 @@ async def format_status_embed():
             f"📦 Version   : {version_str}\n"
             f"🌐 WiFi      : {wifi_ssid} ({wifi_rssi} dBm) {wifi_emoji}\n"
             f"📍 IP/MAC    : {ip} | {status.get('mac', 'N/A')}\n"
-            \n\u200B\n
+
             f"#######################\n"
             f"# Hashrate und Shares #\n"
             f"#######################\n"
@@ -466,9 +465,9 @@ async def format_status_embed():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
-            \n\u200B\n
+
             f"{nerdaxe_stats}"
-            \n\u200B\n
+
             f"###############################\n"
             f"# Temperatur- und Power-Daten #\n"
             f"###############################\n"
@@ -504,7 +503,7 @@ async def format_status_embed():
         value += (
             f"📈 Eff       : {status['hashRate'] / status['power'] if status['power'] > 0 else 0:.2f} GH/W\n"
             f"💨 Fan       : {status.get('fanspeed', 0)}% / {status['fanrpm']} RPM {fan_emoji}\n"
-            "\n"
+
             f"#########################\n"
             f"# Stratum-Informationen #\n"
             f"#########################\n"
