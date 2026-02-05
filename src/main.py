@@ -11,6 +11,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import sys
+import json
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
@@ -40,6 +41,30 @@ def get_version() -> str:
     except Exception as e:
         logger.warning(f'Error reading VERSION file: {e}')
         return 'unknown'
+
+
+def load_status_message_id() -> Optional[int]:
+    """Load persisted status message ID if available."""
+    try:
+        if os.path.exists(STATUS_MESSAGE_FILE):
+            with open(STATUS_MESSAGE_FILE, "r") as f:
+                payload = json.load(f)
+            message_id = payload.get("message_id")
+            if isinstance(message_id, int):
+                return message_id
+    except Exception as e:
+        logger.warning(f"Failed to load status message ID: {e}")
+    return None
+
+
+def save_status_message_id(message_id: int) -> None:
+    """Persist status message ID for reuse across restarts."""
+    try:
+        os.makedirs(os.path.dirname(STATUS_MESSAGE_FILE), exist_ok=True)
+        with open(STATUS_MESSAGE_FILE, "w") as f:
+            json.dump({"message_id": message_id}, f)
+    except Exception as e:
+        logger.warning(f"Failed to save status message ID: {e}")
 
 # Logging configuration with rotation
 log_dir = os.path.join(get_project_root(), "logs")
@@ -84,6 +109,7 @@ last_update_time: Optional[datetime] = None
 status_cache: Dict[str, Any] = {}
 alert_cooldowns: Dict[str, datetime] = {}  # Track when alerts were last sent
 ALERT_COOLDOWN = timedelta(minutes=15)  # Don't spam alerts
+STATUS_MESSAGE_FILE = os.path.join(get_project_root(), "data", "status_message.json")
 
 # Alert thresholds
 TEMP_CRITICAL = 75  # °C
@@ -231,6 +257,18 @@ async def update_status() -> None:
             await asyncio.sleep(1)
         
         # Update existing message or create new one
+        if last_message is None:
+            message_id = load_status_message_id()
+            if message_id:
+                try:
+                    last_message = await channel.fetch_message(message_id)
+                    logger.info('Loaded previous status message')
+                except discord.NotFound:
+                    logger.warning('Stored status message not found, will create a new one')
+                    last_message = None
+                except discord.HTTPException as e:
+                    logger.warning(f'Failed to fetch stored status message: {e}')
+
         if last_message:
             try:
                 await last_message.edit(embed=embed)
@@ -238,6 +276,7 @@ async def update_status() -> None:
             except discord.NotFound:
                 logger.warning('Previous message not found, creating new one')
                 last_message = await channel.send(embed=embed)
+                save_status_message_id(last_message.id)
             except discord.HTTPException as e:
                 if e.status == 429:  # Rate limited
                     retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
@@ -249,6 +288,7 @@ async def update_status() -> None:
         else:
             last_message = await channel.send(embed=embed)
             logger.info('Initial status message created')
+            save_status_message_id(last_message.id)
         
         last_update_time = datetime.now()
         
