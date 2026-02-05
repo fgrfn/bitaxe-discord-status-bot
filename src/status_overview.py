@@ -242,7 +242,6 @@ def chunk_embed_field(value, max_length=1024):
 
 def add_spacer_field(embed):
     embed.add_field(name="\u200b", value="\u200b", inline=False)
-=======
 
 async def format_status_embed():
     data = await get_all_device_statuses()
