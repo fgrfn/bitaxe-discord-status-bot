@@ -1,12 +1,12 @@
 import discord
-from device_status import get_all_device_statuses
+from src.device_status import get_all_device_statuses
 import json
 import os
 from datetime import datetime
 import logging
 import time
 import threading
-from config import get_project_root, get_update_interval, get_mention_user_id, get_devices, get_device_config
+from src.config import get_project_root, get_update_interval, get_mention_user_id, get_devices, get_device_config
 
 # Absolute Pfade für Dateien
 PROJECT_ROOT = get_project_root()

@@ -14,8 +14,8 @@ import sys
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 
-from status_overview import format_status_embed
-from config import (
+from src.status_overview import format_status_embed
+from src.config import (
     get_bot_token,
     get_channel_id,
     get_update_interval,
