@@ -459,6 +459,7 @@ async def format_status_embeds():
         
         value = (
             f"```ansi\n"
+            f"\n"
             f"##########################\n"
             f"# Hardware-Informationen #\n"
             f"##########################\n"
