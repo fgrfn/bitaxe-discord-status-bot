@@ -343,8 +343,6 @@ async def format_status_embeds():
             f"```"
         )
         embed.add_field(name="📊 Übersicht", value=summary, inline=False)
-        # Add a spacer line after the summary to match the requested layout.
-        add_spacer_field(embed)
 
     for hostname, status, is_nerdaxe, is_error in device_entries:
         target_embed = nerdaxe_embed if is_nerdaxe else bitaxe_embed
@@ -460,6 +458,7 @@ async def format_status_embeds():
                 )
         
         value = (
+            f"```ansi\n"
             f"##########################\n"
             f"# Hardware-Informationen #\n"
             f"##########################\n"
@@ -471,7 +470,6 @@ async def format_status_embeds():
             f"📦 Version   : {version_str}\n"
             f"🌐 WiFi      : {wifi_ssid} ({wifi_rssi} dBm) {wifi_emoji}\n"
             f"📍 IP/MAC    : {ip} | {status.get('mac', 'N/A')}\n"
-            f"```ansi\n"
 
             f"#######################\n"
             f"# Hashrate und Shares #\n"
@@ -480,7 +478,6 @@ async def format_status_embeds():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
-            f"```ansi\n"
 
             f"{nerdaxe_stats}"
 
@@ -554,7 +551,6 @@ async def format_status_embeds():
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
         record_block = (
             f"```ansi\n"
-            f"-----------------------\n"
             f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
             f"🛠️ Gerät     : {current_best['hostname']}\n"
             f"🕒 Zeit      : {timestamp.strftime('%d.%m.%Y %H:%M')}\n"
