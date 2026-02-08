@@ -233,12 +233,32 @@ def format_best_diff(best_diff):
         return str(best_diff)  # Falls etwas schief geht, einfach den Originalwert zurückgeben
 
 def chunk_embed_field(value, max_length=1024):
+    """Split a long string into chunks suitable for Discord embed fields."""
     if value.startswith("```") and value.endswith("```"):
         code_fence = value.split("\n", 1)[0]
         inner = value[len(code_fence) + 1:-3]
-        chunks = [inner[i:i + max_length - len(code_fence) - 4] for i in range(0, len(inner), max_length - len(code_fence) - 4)]
+        chunks = [
+            inner[i:i + max_length - len(code_fence) - 4]
+            for i in range(0, len(inner), max_length - len(code_fence) - 4)
+        ]
         return [f"{code_fence}\n{chunk}```" for chunk in chunks]
-    return [value[i:i + max_length] for i in range(0, len(value), max_length)]
+
+    # Ensure critical sections like "Stratum" are not split unnecessarily
+    sections = value.split("#########################")
+    chunks = []
+    current_chunk = ""
+
+    for section in sections:
+        if len(current_chunk) + len(section) + len("#########################") <= max_length:
+            current_chunk += f"#########################{section}"
+        else:
+            chunks.append(current_chunk)
+            current_chunk = f"#########################{section}"
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
 
 def add_spacer_field(embed):
     embed.add_field(name="\u200b", value="\u200b", inline=False)
