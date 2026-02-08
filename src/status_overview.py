@@ -355,7 +355,6 @@ async def format_status_embeds():
     for embed, stats in ((bitaxe_embed, bitaxe_stats), (nerdaxe_embed, nerdaxe_stats)):
         total_devices, online_devices, offline_devices, total_hashrate, total_power, total_efficiency = stats
         summary = (
-            f"```ansi\n"
             f"📊 Gesamt: {total_devices} Gerät{'e' if total_devices != 1 else ''} | "
             f"🟢 {online_devices} Online | 🔴 {offline_devices} Offline\n"
             f"⚡ Total : {total_hashrate:.2f} GH/s | 🔋 {total_power:.2f}W | "
