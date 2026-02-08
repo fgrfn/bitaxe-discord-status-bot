@@ -460,7 +460,6 @@ async def format_status_embeds():
                 )
         
         value = (
-            f"```ansi\n"
             f"##########################\n"
             f"# Hardware-Informationen #\n"
             f"##########################\n"
@@ -472,6 +471,7 @@ async def format_status_embeds():
             f"📦 Version   : {version_str}\n"
             f"🌐 WiFi      : {wifi_ssid} ({wifi_rssi} dBm) {wifi_emoji}\n"
             f"📍 IP/MAC    : {ip} | {status.get('mac', 'N/A')}\n"
+            f"```ansi\n"
 
             f"#######################\n"
             f"# Hashrate und Shares #\n"
@@ -480,6 +480,7 @@ async def format_status_embeds():
             f"🧠 Shares    : ✅ {accepted} / ❌ {rejected} ({success_rate:.1f}%)\n"
             f"💎 BestDiff  : {format_best_diff(status['bestDiff'])}\n"
             f"🎯 Pool Diff : {status.get('poolDifficulty', 0)}\n"
+            f"```ansi\n"
 
             f"{nerdaxe_stats}"
 
