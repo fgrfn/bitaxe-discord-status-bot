@@ -343,6 +343,8 @@ async def format_status_embeds():
             f"```"
         )
         embed.add_field(name="📊 Übersicht", value=summary, inline=False)
+        # Add a spacer line after the summary to match the requested layout.
+        add_spacer_field(embed)
 
     for hostname, status, is_nerdaxe, is_error in device_entries:
         target_embed = nerdaxe_embed if is_nerdaxe else bitaxe_embed
@@ -551,6 +553,7 @@ async def format_status_embeds():
         formatted_time_ago = format_time_ago(minutes_ago)  # Zeit in Tagen, Stunden, Minuten formatieren
         record_block = (
             f"```ansi\n"
+            f"-----------------------\n"
             f"💎 Wert      : {int(current_best['value']):,} ({current_best['short']}).\n"
             f"🛠️ Gerät     : {current_best['hostname']}\n"
             f"🕒 Zeit      : {timestamp.strftime('%d.%m.%Y %H:%M')}\n"
