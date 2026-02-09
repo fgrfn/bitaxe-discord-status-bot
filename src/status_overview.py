@@ -463,7 +463,7 @@ async def format_status_embeds():
             f"# Hardware-Informationen #\n"
             f"##########################\n"
             f"\n"  # Added blank line here
-"
+
             f"🖥️ ASICModel : {status['ASICModel']}\n"
             f"🧭 Frequency : {status['frequency']} MHz @{status['coreVoltageActual']/1000:.3f}V | {status['coreVoltage']/1000:.3f}V\n"
             f"🔧 Device    : {status.get('deviceModel', 'Unknown')}\n"
